@@ -10,6 +10,8 @@ file(GLOB KLEVRET_CORE_SOURCE_FILES
     # Note: Так же видел, что в исходном конфиге заголовочные файлы не указывались.
     #   Честно говоря первый раз вижу подобное, но если нужно, то заголовочные файлы можно убрать.
     "${KLEVRET_CORE_PATH}/src/*.hpp"
+    "${KLEVRET_COMMON_PATH}/src/*.hpp"
+    "${KLEVRET_COMMON_PATH}/src/*.cpp"
 )
 
 # ~~~ core-server target ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ >>>
@@ -24,6 +26,7 @@ add_executable(${KLEVRET_CORE_TARGET} ${KLEVRET_CORE_SOURCE_FILES})
 #   указывать `#include <Subdir/File.hpp>`, а не `#include "../Subdir/File.hpp"`
 target_include_directories(${KLEVRET_CORE_TARGET}
     PRIVATE "${KLEVRET_CORE_PATH}/src/"
+    "${KLEVRET_COMMON_PATH}/src/"
 )
 
 # Указание стандарта

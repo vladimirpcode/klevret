@@ -10,7 +10,7 @@ public:
     Defer(C callable_object)
         :   _callable_object(callable_object)
     {
-
+        static_assert(std::is_invocable_v<C>, "C must be callable");
     }
     ~Defer(){
         _callable_object();

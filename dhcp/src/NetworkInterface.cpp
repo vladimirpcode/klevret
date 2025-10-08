@@ -9,6 +9,32 @@
 #include <linux/if.h>
 #include <unistd.h>
 #include <cstring>
+#include "../../common/src/Defer.hpp"
+
+int linux_if_nametoindex(const char *ifname) {
+    int sockfd;
+    ifreq ifr;
+
+    // Создаем сокет для ioctl
+    sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+    if (sockfd == -1) {
+        throw std::runtime_error("Не удалось создать сокет для получения индекса интерфейса");
+    }
+    Defer close_socket([&](){
+        close(sockfd);
+    });
+
+    // Заполняем структуру запроса
+    strncpy(ifr.ifr_name, ifname, IFNAMSIZ);
+
+    // Получаем индекс через ioctl
+    if (ioctl(sockfd, SIOCGIFINDEX, &ifr) == -1) {
+        throw std::runtime_error("Не удалось получить индекс сетевого интерфейса");
+
+    }
+
+    return ifr.ifr_ifindex;
+}
 
 std::vector<NetworkInterface> get_all_interfaces(){
     // https://man7.org/linux/man-pages/man3/getifaddrs.3.html
@@ -22,6 +48,7 @@ std::vector<NetworkInterface> get_all_interfaces(){
     while (current_iface){
         NetworkInterface new_iface;
         new_iface.name = std::string(current_iface->ifa_name);
+        new_iface.linux_interface_index = linux_if_nametoindex(current_iface->ifa_name);
         if (current_iface->ifa_addr->sa_family == AF_INET){
             new_iface.type = L3AddressType::IPv4;
             new_iface.network_address = IPv4Address(network_to_host_endian<uint32_t>(((sockaddr_in *)(current_iface->ifa_addr))->sin_addr.s_addr));

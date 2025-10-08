@@ -125,7 +125,7 @@ int main(){
     DhcpMessage test_dhcp_message(test_dhcp_message_data);
     UdpServer udp_listener(67);
     std::cout << "DHCP server started\n";
-    ApiServer::instance().start();
+    //ApiServer::instance().start();
     //wireshark filter udp.payload == 64:63:62:61:60:5f:5e:5d:5c:5b:5a
     //udp_listener.send_to({100, 99, 98, 97, 96,95,94,93,92,91,90});
     AddressPool pool({"192.168.1.10"},{"192.168.1.20"});
@@ -134,9 +134,14 @@ int main(){
         if (udp_listener.is_input_queue_blank()){
             continue;
         }
-        auto packet = udp_listener.get_next_datagram();
-        std::cout << "received datagram length " << packet.size() << "\n";
-        DhcpMessage dhcp_packet(packet);
+        UdpPacketWithInfo packet_with_info = udp_listener.get_next_datagram();
+        std::cout << "received datagram length " << packet_with_info.data.size() << "\n";
+        std::cout << "interface:  "
+            << std::find_if(ifaces.begin(), ifaces.end(), [&](NetworkInterface& iface){
+                return iface.linux_interface_index == packet_with_info.interface_index;
+            })->name
+            << "\n";
+        DhcpMessage dhcp_packet(packet_with_info.data);
         /*
         std::cout << dhcp_packet.yiaddr.to_string() << "\n";
         for (auto option : dhcp_packet.options){

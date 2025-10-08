@@ -20,7 +20,7 @@ TcpListener::~TcpListener(){
 
 tcp_packet TcpListener::get_next_packet(){
     std::lock_guard<std::mutex> guard(_queue_mutex);
-    if (!_is_empty_no_mutex()){
+    if (_is_empty_no_mutex()){
         throw std::runtime_error("Очередь пуста");
     }
     tcp_packet packet = _queue.front();

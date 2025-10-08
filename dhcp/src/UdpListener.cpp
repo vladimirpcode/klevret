@@ -25,11 +25,16 @@ UdpServer::UdpServer(int port)
     _pthread(nullptr),
     _host_interfaces(get_all_interfaces())
 {
-    sockaddr_in sa_server;
-    _socket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    _socket = socket(AF_INET, SOCK_DGRAM, 0);
     if (_socket == -1){
         throw std::runtime_error("Ошибка создания серверного UDP сокета");
     }
+
+    // Включить получение информации о пакете
+    int yes = 1;
+    setsockopt(_socket, IPPROTO_IP, IP_PKTINFO, &yes, sizeof(yes));
+
+    sockaddr_in sa_server;
     std::memset(&sa_server, 0, sizeof sa_server);
     sa_server.sin_family = AF_INET;
     sa_server.sin_port = htons(port);
@@ -44,16 +49,46 @@ void UdpServer::thread_func(UdpServer* udp_listener){
     constexpr int BUFFER_SIZE = 10000;
     uint8_t buffer[BUFFER_SIZE];
     while (!udp_listener->_stop_flag){
-        sockaddr_in sa_client;
-        socklen_t sa_len = sizeof sa_client;
-        int recv_len = recvfrom(udp_listener->_socket, buffer, BUFFER_SIZE, 0, (sockaddr*)&sa_client, &sa_len);
-        if (recv_len <= 0){
+        UdpPacketWithInfo datagram_with_info;
+        struct iovec iov[1];
+        iov[0].iov_base = buffer;
+        iov[0].iov_len = BUFFER_SIZE;
+
+        char control_msg[1024];
+        struct sockaddr_in client_addr;
+
+        msghdr msg = {0};
+        msg.msg_name = &client_addr;
+        msg.msg_namelen = sizeof(client_addr);
+        msg.msg_iov = iov;
+        msg.msg_iovlen = 1;
+        msg.msg_control = control_msg;
+        msg.msg_controllen = sizeof(control_msg);
+
+        ssize_t recivied_bytes = recvmsg(udp_listener->_socket, &msg, 0);
+
+        if (recivied_bytes <= 0) {
             continue;
         }
-        std::vector<uint8_t> datagram(std::begin(buffer), std::begin(buffer) + recv_len);
+        std::cout << "словил\n";
+        char client_ip[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, sizeof(client_ip));
+        datagram_with_info.ip_address = IPv4Address(client_ip);
+        // Поиск информации о интерфейсе
+        cmsghdr *cmsg;
+        // ToDo Добавить обработку ошибок
+        for (cmsg = CMSG_FIRSTHDR(&msg); cmsg != NULL; cmsg = CMSG_NXTHDR(&msg, cmsg)) {
+            if (cmsg->cmsg_level == IPPROTO_IP && cmsg->cmsg_type == IP_PKTINFO) {
+                in_pktinfo *pktinfo = (in_pktinfo *)CMSG_DATA(cmsg);
+                datagram_with_info.interface_index = pktinfo->ipi_ifindex;
+            }
+        }
+        datagram_with_info.data = std::vector<uint8_t>(std::begin(buffer), std::begin(buffer) + recivied_bytes);
+        std::cout << "щас буду в очередь добавлять\n";
         udp_listener->_mutex.lock();
-        udp_listener->_queue.push(datagram);
-        udp_listener->_mutex.unlock(); //segfault
+        udp_listener->_queue.push(datagram_with_info);
+        udp_listener->_mutex.unlock();
+        std::cout << "добавил в очередь, размер очереди: " << udp_listener->_queue.size() << "\n";
     }
 }
 
@@ -64,11 +99,14 @@ UdpServer::~UdpServer(){
     close(_socket);
 }
 
-std::vector<uint8_t> UdpServer::get_next_datagram(){
+UdpPacketWithInfo UdpServer::get_next_datagram(){
+    std::cout << "щас буду ждать\n";
     std::lock_guard<std::mutex> lock_guard(_mutex);
-    std::vector<uint8_t> datagram = _queue.front();
+    std::cout << "дождался\n";
+    UdpPacketWithInfo datagram_with_info = _queue.front();
     _queue.pop();
-    return datagram;
+    std::cout << "возвращаю следующую датаграмму\n";
+    return datagram_with_info;
 }
 
 
@@ -87,7 +125,6 @@ void UdpServer::send_to(std::vector<uint8_t> data){
     if (raw_socket == -1){
         throw std::runtime_error("Не удалось создать сырой сокет UdpServer::send_to");
     }
-    test();
     Defer close_raw_socket([&](){
         close(raw_socket);
     });
@@ -106,7 +143,6 @@ void UdpServer::send_to(std::vector<uint8_t> data){
     if (ioctl(raw_socket, SIOGIFINDEX, &ifr) == -1){
         throw std::runtime_error("Не удалось получить индекс интерфейса UdpServer::send_to");
     }
-    close(raw_socket);
     //=====================================
     int socket_for_sending = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (socket_for_sending == -1){
