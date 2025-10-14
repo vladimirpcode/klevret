@@ -80,7 +80,6 @@ private:
             int bytes_read = read(client_socket, buffer, BUFFER_SIZE - 1);
             if (bytes_read > 0) {
                 buffer[bytes_read] = '\0';
-                std::cout << "Received: \n" << buffer << "\n\n";
 
                 // Отправляем ответ
                 //const char* response = "Message received";

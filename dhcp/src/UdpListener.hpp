@@ -23,7 +23,9 @@ public:
     UdpPacketWithInfo get_next_datagram();
     bool is_input_queue_blank();
     void stop();
-    void send_to(std::vector<uint8_t> data);
+    void unicast_send_to(const std::vector<uint8_t>& data, const NetworkInterface& iface,
+        const MacAddress& dst_mac, const IPv4Address& dst_ip);
+    void broadcast_send_to(const std::vector<uint8_t>& data, const IPv4Address& dst_broadcast_ip);
 private:
     int _socket;
     std::queue<UdpPacketWithInfo> _queue;

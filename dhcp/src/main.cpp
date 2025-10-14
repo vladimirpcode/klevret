@@ -128,7 +128,7 @@ int main(){
     //ApiServer::instance().start();
     //wireshark filter udp.payload == 64:63:62:61:60:5f:5e:5d:5c:5b:5a
     //udp_listener.send_to({100, 99, 98, 97, 96,95,94,93,92,91,90});
-    AddressPool pool({"192.168.1.10"},{"192.168.1.20"});
+    AddressPool pool({"172.18.1.30"},{"172.18.1.40"});
     std::map<uint32_t, IPv4Address> xids;
     while(true){
         if (udp_listener.is_input_queue_blank()){
@@ -136,11 +136,10 @@ int main(){
         }
         UdpPacketWithInfo packet_with_info = udp_listener.get_next_datagram();
         std::cout << "received datagram length " << packet_with_info.data.size() << "\n";
-        std::cout << "interface:  "
-            << std::find_if(ifaces.begin(), ifaces.end(), [&](NetworkInterface& iface){
-                return iface.linux_interface_index == packet_with_info.interface_index;
-            })->name
-            << "\n";
+        NetworkInterface interface = *std::find_if(ifaces.begin(), ifaces.end(), [&](NetworkInterface& iface){
+            return iface.linux_interface_index == packet_with_info.interface_index;
+        });
+        std::cout << "interface:  " << interface.name << "\n";
         DhcpMessage dhcp_packet(packet_with_info.data);
         /*
         std::cout << dhcp_packet.yiaddr.to_string() << "\n";
@@ -158,11 +157,13 @@ int main(){
                 MacAddress* mac = dynamic_cast<MacAddress*>(dhcp_packet.chaddr.get());
                 xids[dhcp_packet.xid] = pool.get_address(*mac);
                 DhcpMessage offer = make_offer(dhcp_packet, xids[dhcp_packet.xid]);
-                udp_listener.send_to(offer.to_network_data());
+                udp_listener.broadcast_send_to(offer.to_network_data(), std::get<IPv4Address>(interface.broadcast_address));
+                //udp_listener.unicast_send_to(offer.to_network_data(), interface, *dynamic_cast<MacAddress*>(offer.chaddr.get()), IPv4Address("255.255.255.255"));
                 std::cout << "отправил DHCPOFFER\n";
             } else if (msg_type == Option53MessageType::DHCPREQUEST){
                 DhcpMessage acknowledge = make_acknowledge(dhcp_packet, xids[dhcp_packet.xid]);
-                udp_listener.send_to(acknowledge.to_network_data());
+                udp_listener.broadcast_send_to(acknowledge.to_network_data(), std::get<IPv4Address>(interface.broadcast_address));
+                //udp_listener.unicast_send_to(acknowledge.to_network_data(), interface, *dynamic_cast<MacAddress*>(acknowledge.chaddr.get()), IPv4Address("255.255.255.255"));
                 std::cout << "отправил DHCPACK\n";
             }
         }

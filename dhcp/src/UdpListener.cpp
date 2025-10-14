@@ -1,6 +1,7 @@
 #include "UdpListener.hpp"
 
 #include <thread>
+#include <random>
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <stdexcept>
@@ -70,7 +71,6 @@ void UdpServer::thread_func(UdpServer* udp_listener){
         if (recivied_bytes <= 0) {
             continue;
         }
-        std::cout << "словил\n";
         char client_ip[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, sizeof(client_ip));
         datagram_with_info.ip_address = IPv4Address(client_ip);
@@ -84,11 +84,9 @@ void UdpServer::thread_func(UdpServer* udp_listener){
             }
         }
         datagram_with_info.data = std::vector<uint8_t>(std::begin(buffer), std::begin(buffer) + recivied_bytes);
-        std::cout << "щас буду в очередь добавлять\n";
         udp_listener->_mutex.lock();
         udp_listener->_queue.push(datagram_with_info);
         udp_listener->_mutex.unlock();
-        std::cout << "добавил в очередь, размер очереди: " << udp_listener->_queue.size() << "\n";
     }
 }
 
@@ -100,12 +98,9 @@ UdpServer::~UdpServer(){
 }
 
 UdpPacketWithInfo UdpServer::get_next_datagram(){
-    std::cout << "щас буду ждать\n";
     std::lock_guard<std::mutex> lock_guard(_mutex);
-    std::cout << "дождался\n";
     UdpPacketWithInfo datagram_with_info = _queue.front();
     _queue.pop();
-    std::cout << "возвращаю следующую датаграмму\n";
     return datagram_with_info;
 }
 
@@ -119,63 +114,146 @@ void UdpServer::stop(){
     _stop_flag = true;
 }
 
+struct __attribute__((packed)) UdpPacket{
+    ethhdr eth;
+    iphdr ip;
+    udphdr udp;
+    uint8_t data[1024];
+};
 
-void UdpServer::send_to(std::vector<uint8_t> data){
-    int raw_socket = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
-    if (raw_socket == -1){
-        throw std::runtime_error("Не удалось создать сырой сокет UdpServer::send_to");
+unsigned short calculate_checksum(uint16_t *ptr, int nbytes) {
+    long sum;
+    unsigned short oddbyte;
+    short answer;
+
+    sum = 0;
+    while (nbytes > 1) {
+        sum += *ptr++;
+        nbytes -= 2;
     }
-    Defer close_raw_socket([&](){
-        close(raw_socket);
+    if (nbytes == 1) {
+        oddbyte = 0;
+        *((u_char*)&oddbyte) = *(u_char*)ptr;
+        sum += oddbyte;
+    }
+
+    sum = (sum >> 16) + (sum & 0xffff);
+    sum += (sum >> 16);
+    answer = (short)~sum;
+    return answer;
+}
+
+int send_packet(int sockfd, bool more_fragments, int fragment_offest, int id, uint8_t data[1024],
+        const NetworkInterface& iface, const MacAddress& dst_mac, const IPv4Address& dst_ip){
+    std::string source_mac = iface.mac_address.to_string();
+    sockaddr_ll s_ll = {0};
+    s_ll.sll_ifindex = iface.linux_interface_index;
+    s_ll.sll_family = AF_PACKET;
+    s_ll.sll_protocol = htons(ETH_P_IP);
+    UdpPacket pkt = {0};
+    // заполняем Ethernet заголовок
+    sscanf(dst_mac.to_string().c_str(), "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
+        &pkt.eth.h_dest[0], &pkt.eth.h_dest[1], &pkt.eth.h_dest[2],
+        &pkt.eth.h_dest[3], &pkt.eth.h_dest[4], &pkt.eth.h_dest[5]
+    );
+    sscanf(source_mac.c_str(), "%hhx:%hhx:%hhx:%hhx:%hhx:%hhx",
+        &pkt.eth.h_source[0], &pkt.eth.h_source[1], &pkt.eth.h_source[2],
+        &pkt.eth.h_source[3], &pkt.eth.h_source[4], &pkt.eth.h_source[5]
+    );
+    pkt.eth.h_proto = htons(ETH_P_IP);
+
+    // Заполняем IP заголовок
+    pkt.ip.ihl = 5;
+    pkt.ip.version = 4;
+    pkt.ip.tos = 0;
+    pkt.ip.tot_len = htons(sizeof(iphdr) + sizeof(udphdr) + sizeof(pkt.data));
+    pkt.ip.id = id;
+    pkt.ip.frag_off = htons((more_fragments ? IP_MF : 0) | fragment_offest);
+    pkt.ip.ttl = 64;
+    pkt.ip.protocol = IPPROTO_UDP;
+    pkt.ip.saddr = inet_addr(std::get<IPv4Address>(iface.network_address).to_string().c_str());
+    pkt.ip.daddr = inet_addr(dst_ip.to_string().c_str());
+    pkt.ip.check = calculate_checksum((uint16_t *)&pkt.ip, sizeof(pkt.ip));
+
+    // Заполняем UDP заголовок
+    pkt.udp.source = htons(67); // порт источника
+    pkt.udp.dest = htons(68); // порт назначения
+    pkt.udp.len = htons(sizeof(udphdr) + sizeof(pkt.data));
+
+    // копируем payload
+    memcpy(pkt.data, data, 1024);
+
+    // UDP checksum опционально можно установить в 0
+    pkt.udp.check = 0;
+
+    // отправляем
+    int total_len = sizeof(ethhdr) + htons(pkt.ip.tot_len);
+    int sent = 0;
+    if ((sent = sendto(sockfd, &pkt, total_len, 0, (sockaddr *) &s_ll, sizeof(s_ll))) == -1){
+        throw std::runtime_error("ошибка отправки\n");
+    }
+    return sent;
+}
+
+int gen_rand_packet_id(){
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<int> dist(1000, 10000);
+    return dist(gen);
+}
+
+void divide_and_send(int sockfd, const std::vector<uint8_t>& data, const NetworkInterface& iface,
+        const MacAddress& dst_mac, const IPv4Address& dst_ip){
+    int packets_count = data.size() / 1024;
+    if (data.size() % 1024 != 0){
+        packets_count++;
+    }
+    int packet_id = gen_rand_packet_id();
+    for (int i = 0; i < packets_count; ++i){
+        uint8_t current_data[1024];
+        memset(current_data, 0, 1024);
+        if (i != packets_count - 1){
+            std::copy(data.begin() + (i * 1024), data.begin() + ((i + 1) * 1024), std::begin(current_data));
+        } else {
+            std::copy(data.begin() + (i * 1024), data.end(), std::begin(current_data));
+        }
+        bool more_fragments = (i != packets_count - 1) ? true : false;
+        send_packet(sockfd, more_fragments, i * 1024, packet_id, current_data, iface, dst_mac, dst_ip);
+    }
+}
+
+void UdpServer::unicast_send_to(const std::vector<uint8_t>& data, const NetworkInterface& iface,
+        const MacAddress& dst_mac, const IPv4Address& dst_ip){
+    int sockfd = socket(AF_PACKET, SOCK_RAW, htons(ETH_P_ALL));
+    if (sockfd == -1){
+        throw std::runtime_error("Ошибка создания сокета UdpServer::send_to");
+    }
+    Defer close_socket([&](){
+        close(sockfd);
     });
-    //ToDo сделать класс для датаграммы, чтобы была инфа с какого интерфейса пришло/
-    const char interface_name[100] = "virbr1";
-    ifreq ifr;
-    memset(&ifr, 0, sizeof ifr);
-    strncpy(ifr.ifr_ifrn.ifrn_name, interface_name, IFNAMSIZ - 1);
-    if (ioctl(raw_socket, SIOCGIFBRDADDR, &ifr) == -1){
-        throw std::runtime_error("Не удалось получить широковещательный IP адрес UdpServer::send_to");
-    }
-    std::string ip_str = std::to_string(*reinterpret_cast<uint8_t*>(&(ifr.ifr_ifru.ifru_broadaddr.sa_data[2])))
-        + "." + std::to_string(*reinterpret_cast<uint8_t*>(&(ifr.ifr_ifru.ifru_broadaddr.sa_data[3])))
-        + "." + std::to_string(*reinterpret_cast<uint8_t*>(&(ifr.ifr_ifru.ifru_broadaddr.sa_data[4])))
-        + "." + std::to_string(*reinterpret_cast<uint8_t*>(&(ifr.ifr_ifru.ifru_broadaddr.sa_data[5])));
-    if (ioctl(raw_socket, SIOGIFINDEX, &ifr) == -1){
-        throw std::runtime_error("Не удалось получить индекс интерфейса UdpServer::send_to");
-    }
-    //=====================================
+    divide_and_send(sockfd, data, iface, dst_mac, dst_ip);
+}
+
+void UdpServer::broadcast_send_to(const std::vector<uint8_t>& data, const IPv4Address& dst_broadcast_ip){
     int socket_for_sending = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (socket_for_sending == -1){
         throw std::runtime_error("Не удалось создать сокет для отправки UdpServer::send_to");
     }
+    Defer close_socket_for_sending([&](){
+        close(socket_for_sending);
+    });
+
     int broadcast_enable = 1;
     if(setsockopt(socket_for_sending, SOL_SOCKET, SO_BROADCAST, &broadcast_enable, sizeof broadcast_enable) == -1){
         throw std::runtime_error("Не удалось задать опцию SO_BROADCAST сокету для отправки (UdpServer::send_to");
     }
-    Defer close_socket_for_sending([&](){
-        close(socket_for_sending);
-    });
-    /*
-    sockaddr_ll sa;
-    memset(&sa, 0, sizeof sa);
-    sa.sll_ifindex = ifr.ifr_ifru.ifru_ivalue;
-    sa.sll_family = AF_PACKET;
-    if (bind(socket_for_sending, (sockaddr *)&sa, sizeof sa) == -1){
-        throw std::runtime_error("Не удалось забиндить сокет для отправки UdpServer::send_to");
-    } */
-    // ====================================
-    sockaddr_in sa2;
-    memset(&sa2, 0, sizeof sa2);
+    sockaddr_in sa2 = {0};
     sa2.sin_family = AF_INET;
     sa2.sin_port = htons(68);
-    sa2.sin_addr.s_addr = inet_addr(ip_str.c_str());
-    char buf[200];
-    inet_ntop(AF_INET, &(sa2.sin_addr), buf, 200);
-    std::cout << "ip address for UDP sending: " << buf << "\n";
+    sa2.sin_addr.s_addr = inet_addr(dst_broadcast_ip.to_string().c_str());
+
     int sent = sendto(socket_for_sending, data.data(), data.size(), 0, (sockaddr*)&sa2, sizeof sa2);
-    std::cout << "отправлено " << sent << " байт\n";
     if (sent <= 0){
-        std::cout << "ошибка: " << errno << "\n";EACCES;
         throw std::runtime_error("Не удалось отправить UDP пакет UdpServer::send_to");
     }
 }
