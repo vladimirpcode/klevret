@@ -100,14 +100,17 @@ void TcpListener::_thread_func(TcpListener *listener){
 
 void TcpListener::_client_handler_thread(TcpListener *listener, int client_socket, sockaddr_in client_addr){
     const int BUFFER_SIZE = 1024*10;
-        uint8_t buffer[BUFFER_SIZE];
-        while (!listener->_stop_flag){
-            int bytes_read = read(client_socket, buffer, BUFFER_SIZE - 1);
-            if (bytes_read > 0) {
-                tcp_packet packet(std::begin(buffer), std::begin(buffer) + bytes_read);
-                listener->_queue_mutex.lock();
-                listener->_queue.push(packet);
-                listener->_queue_mutex.unlock();
-            }
+    uint8_t buffer[BUFFER_SIZE];
+    while (!listener->_stop_flag){
+        int bytes_read = read(client_socket, buffer, BUFFER_SIZE - 1);
+        if (bytes_read == -1){
+            break;
         }
+        if (bytes_read > 0) {
+            tcp_packet packet(std::begin(buffer), std::begin(buffer) + bytes_read);
+            listener->_queue_mutex.lock();
+            listener->_queue.push(packet);
+            listener->_queue_mutex.unlock();
+        }
+    }
 }
