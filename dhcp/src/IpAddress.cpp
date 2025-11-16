@@ -95,17 +95,17 @@ bool IPv4Address::operator==(const IPv4Address& other){
 
 
 bool operator<(const IPv4Address& lhs, const IPv4Address rhs){
-    return lhs._to_uint32_t() < rhs._to_uint32_t();
+    return lhs.to_uint32_t() < rhs.to_uint32_t();
 }
 
 void IPv4Address::_increment(){
-    uint32_t ip_data = _to_uint32_t();
+    uint32_t ip_data = to_uint32_t();
     ip_data++;
     _data = host_to_network_endian_array<uint32_t, IP_V4_ADDRESS_LENGTH>(ip_data);
 }
 
 
-uint32_t IPv4Address::_to_uint32_t() const{
+uint32_t IPv4Address::to_uint32_t() const{
     return network_array_to_host_endian<uint32_t, IP_V4_ADDRESS_LENGTH>(_data);
 }
 

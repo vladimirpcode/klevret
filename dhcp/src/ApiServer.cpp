@@ -54,7 +54,7 @@ void ApiServer::start(DhcpServer& dhcp_server){
                     boost::property_tree::read_json(iss, pt);
                     std::cout << ptree_to_json_string(pt) << "\n";
                     std::string error_msg;
-                    bool result = api_handlers.at(pt.get<std::string>("cmd"))(pt, error_msg);
+                    bool result = api_handlers.at(pt.get<std::string>("cmd"))(*this->_dhcp_server, pt, error_msg);
                 } catch (...){
 
                 }

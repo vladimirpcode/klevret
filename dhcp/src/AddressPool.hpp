@@ -25,7 +25,12 @@ public:
     bool is_address_excluded(const IPv4Address& ip) const;
     void set_option(DhcpOption option);
     void remove_option(int option_number);
+
+    IPv4Address get_start_ip() const;
+    IPv4Address get_end_ip() const;
 private:
+    const IPv4Address _start_ip; // for info
+    const IPv4Address _end_ip; // for info
     std::set<IPv4Address> _included_ip_addresses;
     std::set<IPv4Address> _excluded_ip_addresses;
     std::map<IPv4Address, MacAddress> _reserved_ip_addresses; // вместе

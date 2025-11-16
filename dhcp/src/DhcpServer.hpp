@@ -4,6 +4,7 @@
 #include <vector>
 #include "NetworkInterface.hpp"
 #include "AddressPool.hpp"
+#include "IpAddress.hpp"
 
 class ApiServer;
 
@@ -12,7 +13,12 @@ class DhcpServer{
 public:
     // singleton
     static DhcpServer& Instance();
+
     void main_loop();
+    bool add_address_pool(const AddressPool& pool, std::string& error);
+    bool have_free_address();
+    IPv4Address take_address(const MacAddress& mac);
+
 private:
     // singleton
     DhcpServer();

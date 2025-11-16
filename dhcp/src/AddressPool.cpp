@@ -1,7 +1,9 @@
 #include "AddressPool.hpp"
 
 
-AddressPool::AddressPool(const IPv4Address& start_ip, const IPv4Address& end_ip){
+AddressPool::AddressPool(const IPv4Address& start_ip, const IPv4Address& end_ip)
+    : _start_ip(start_ip), _end_ip(end_ip)
+{
     IPv4Address current = start_ip;
     while (current != end_ip){
         _included_ip_addresses.insert(current);
@@ -138,4 +140,12 @@ void AddressPool::set_option(DhcpOption option){
 
 void AddressPool::remove_option(int option_number){
     _options.erase(option_number);
+}
+
+IPv4Address AddressPool::get_start_ip() const{
+    return _start_ip;
+}
+
+IPv4Address AddressPool::get_end_ip() const{
+    return _end_ip;
 }

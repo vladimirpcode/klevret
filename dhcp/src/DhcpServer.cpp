@@ -9,7 +9,6 @@
 #include <boost/algorithm/algorithm.hpp>
 #include <boost/property_tree/json_parser.hpp>
 
-
 DhcpServer* DhcpServer::_instance;
 std::mutex DhcpServer::_instance_mutex;
 
@@ -106,9 +105,12 @@ DhcpMessage make_acknowledge(const DhcpMessage& packet, const IPv4Address& ip){
 void DhcpServer::main_loop(){
     UdpServer udp_listener(67);
     std::cout << "DHCP server started\n";
-    AddressPool pool({"172.18.1.30"},{"172.18.1.40"});
     std::map<uint32_t, IPv4Address> xids;
     while(true){
+        if (!have_free_address()){
+            continue;
+        }
+        //todo Ограничить очеред размером
         if (udp_listener.is_input_queue_blank()){
             continue;
         }
@@ -138,7 +140,7 @@ void DhcpServer::main_loop(){
             Option53MessageType msg_type = static_cast<Option53MessageType>(std::get<uint8_t>(option53->real_values.at(0)));
             if (msg_type == Option53MessageType::DHCPDISCOVER){
                 MacAddress* mac = dynamic_cast<MacAddress*>(dhcp_packet.chaddr.get());
-                xids[dhcp_packet.xid] = pool.get_address(*mac);
+                xids[dhcp_packet.xid] = take_address(*mac);
                 DhcpMessage offer = make_offer(dhcp_packet, xids[dhcp_packet.xid]);
                 udp_listener.broadcast_send_to(offer.to_network_data(), std::get<IPv4Address>(interface.broadcast_address));
                 //udp_listener.unicast_send_to(offer.to_network_data(), interface, *dynamic_cast<MacAddress*>(offer.chaddr.get()), IPv4Address("255.255.255.255"));
@@ -151,4 +153,41 @@ void DhcpServer::main_loop(){
             }
         }
     }
+}
+
+
+bool DhcpServer::add_address_pool(const AddressPool& pool, std::string& error){
+    std::lock_guard<std::mutex> lock_guard{_state_change_mutex};
+    for (const auto& current_pool : _address_pools){
+        uint32_t adding_start = pool.get_start_ip().to_uint32_t();
+        uint32_t adding_end = pool.get_end_ip().to_uint32_t();
+        uint32_t current_start = current_pool.get_start_ip().to_uint32_t();
+        uint32_t current_end = current_pool.get_end_ip().to_uint32_t();
+        if (adding_start >= current_start && adding_start <= current_end){
+            error = "Intersection of address pools";
+            return false;
+        }
+        if (adding_end >= current_start && adding_end <= current_end){
+            error = "Intersection of address pools";
+            return false;
+        }
+    }
+    _address_pools.push_back(pool);
+    return true;
+}
+
+
+bool DhcpServer::have_free_address(){
+    std::lock_guard<std::mutex> lock_guard(_state_change_mutex);
+    if (_address_pools.size() == 0){
+        return false;
+    }
+    return true;
+    //ToDo
+}
+
+
+IPv4Address DhcpServer::take_address(const MacAddress& mac){
+    std::lock_guard<std::mutex> lock_guard{_state_change_mutex};
+    return _address_pools.at(0).get_address(mac);
 }

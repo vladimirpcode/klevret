@@ -22,9 +22,9 @@ public:
     IPv4Address operator++(int);
     bool operator==(const IPv4Address& other);
     friend bool operator<(const IPv4Address& lhs, const IPv4Address rhs);
+    uint32_t to_uint32_t() const;
 private:
     void _increment();
-    uint32_t _to_uint32_t() const;
     std::array<uint8_t, IP_V4_ADDRESS_LENGTH> _data;   // big endian
 };
 
