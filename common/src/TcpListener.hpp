@@ -5,8 +5,13 @@
 #include <queue>
 #include <atomic>
 #include <netinet/in.h>
+#include "tcp_packet.hpp"
 
-using tcp_packet = std::vector<uint8_t>;
+
+
+namespace common{
+
+
 
 class TcpListener{
 public:
@@ -29,3 +34,7 @@ private:
     static void _client_handler_thread(TcpListener *listener, int client_socket, sockaddr_in client_addr);
     bool _is_empty_no_mutex();
 };
+
+
+
+}

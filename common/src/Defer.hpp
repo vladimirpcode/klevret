@@ -4,6 +4,9 @@
 #include <functional>
 #include <utility>
 
+namespace common{
+
+
 template <typename C>
 class Defer{
 public:
@@ -18,3 +21,7 @@ public:
 private:
     C _callable_object;
 };
+
+
+
+}

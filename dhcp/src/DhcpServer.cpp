@@ -25,13 +25,13 @@ DhcpServer& DhcpServer::Instance(){
 
 DhcpServer::DhcpServer(){
     _network_interfaces = get_all_interfaces();
-    for (auto &iface : _network_interfaces){
+   /*  for (auto &iface : _network_interfaces){
         if (iface.type == L3AddressType::IPv4){
             std::cout << iface.name << ": " << std::get<IPv4Address>(iface.network_address).to_string()
                 << "/" << std::get<IPv4SubnetMask>(iface.subnet_mask).to_prefix()
                 << "  " << iface.mac_address.to_string() <<"\n";
         }
-    }
+    } */
 }
 
 enum class Option53MessageType{

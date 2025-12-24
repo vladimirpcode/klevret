@@ -12,7 +12,9 @@
 #include <queue>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
-#include "../../common/src/TcpListener.hpp"
+#include <sstream>
+#include "../../common/src/ApiEndpoint.hpp"
+#include "../../config/src/Config.hpp"
 #include "ApiHandlers.hpp"
 
 
@@ -42,19 +44,28 @@ std::string ptree_to_json_string(const boost::property_tree::ptree& pt) {
 
 void ApiServer::start(DhcpServer& dhcp_server){
     _dhcp_server = &dhcp_server;
-    _thread = new std::thread([this](){
-        TcpListener tcp_server("127.0.0.1", ApiServer::PORT, 1);
+    _thread = new std::thread([&](){
+    auto global_config = config::get_global_config();
+        std::cout << "start _thread in ApiServer\n";
+        int dhcp_api_input_tcp_port = global_config.get_json().get<int>("dhcp_api_input_tcp_port");
+        int core_internal_api_input_tcp_port = global_config.get_json().get<int>("core_internal_api_input_tcp_port");
+        std::cout << dhcp_api_input_tcp_port << " " << core_internal_api_input_tcp_port << "\n";
+        common::ApiEndpoint api_endpoint(
+            dhcp_api_input_tcp_port,
+            "127.0.0.1",
+            core_internal_api_input_tcp_port
+        );
         while (true)
         {
-            if (!tcp_server.is_empty()){
-                auto packet = tcp_server.get_next_packet();
+            if (api_endpoint.is_there_messages()){
+                common::ApiMessage api_message = api_endpoint.get_next_message();
                 try{
-                    boost::property_tree::ptree pt;
-                    std::istringstream iss(std::string(packet.begin(), packet.end()));
-                    boost::property_tree::read_json(iss, pt);
-                    std::cout << ptree_to_json_string(pt) << "\n";
-                    std::string error_msg;
-                    bool result = api_handlers.at(pt.get<std::string>("cmd"))(*this->_dhcp_server, pt, error_msg);
+                    ptree response;
+                    auto api_handler = api_handlers.at(api_message.json.get<std::string>("cmd"));
+                    bool result = api_handler(*_dhcp_server, api_message.json, response);
+                    // ToDo сделать отдельный канал назад в кор на один порт со всех компонент, еще назад в консоль.
+                    // помечать запросы рендомным ID, с разным префиксом для фронтов и консолей. И получится асинхронный
+                    // обмен месенджами на основе очередей. И еще сделать в CLI функцию с таймайтом whait_response_for_id()
                 } catch (...){
 
                 }

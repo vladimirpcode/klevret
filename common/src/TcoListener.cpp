@@ -6,6 +6,11 @@
 #include <unistd.h>
 #include <cstring>
 
+
+namespace common{
+
+
+
 TcpListener::TcpListener(const std::string& ip, int port, int max_connections)
     : _port(port), _stop_flag(false),
     _max_connections(max_connections),
@@ -113,4 +118,8 @@ void TcpListener::_client_handler_thread(TcpListener *listener, int client_socke
             listener->_queue_mutex.unlock();
         }
     }
+}
+
+
+
 }

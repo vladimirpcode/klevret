@@ -12,12 +12,21 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 ////
+#include "../../common/src/TcpListener.hpp"
+#include "../../common/src/ApiEndpoint.hpp"
+#include "../../config/src/Config.hpp"
 
 using namespace std::string_literals;
 
-std::map<KlevretComponent, int> klevret_components{
-    {KlevretComponent::CORE, 40236},
-};
+common::TcpConnector core_tcp_connector(
+    "127.0.0.1",
+    config::get_global_config().get_json().get<int>("core_external_api_input_tcp_port")
+);
+common::TcpListener api_reponse_listener(
+    "127.0.0.1",
+    config::get_global_config().get_json().get<int>("cli_api_replies_input_tcp_port"),
+    1
+);
 
 void check_args_size(const std::stack<CommandElementRealValue>& cmd, int number_of_args, const std::string cmd_str){
     if (cmd.size() != number_of_args){
@@ -25,27 +34,14 @@ void check_args_size(const std::stack<CommandElementRealValue>& cmd, int number_
     }
 }
 
-void send_cmd(KlevretComponent klevret_component, const  boost::property_tree::ptree& obj){
-    //ToDo прицепить компонент
+void send_cmd(KlevretComponent klevret_component, boost::property_tree::ptree& obj){
+    obj.put("component", "dhcp");
     std::stringstream ss;
     boost::property_tree::write_json(ss, obj);
     std::cout << ss.str() << "\n";
-    int client_socket = socket(AF_INET, SOCK_STREAM, 0);
-    if (client_socket == -1){
-        throw std::runtime_error("не удалось создать клиентский сокет");
-    }
-    sockaddr_in sa;
-    memset(&sa, 0, sizeof sa);
-    sa.sin_family = AF_INET;
-    sa.sin_port = htons(klevret_components[KlevretComponent::CORE]);
-    if (inet_pton(AF_INET, "127.0.0.1", &sa.sin_addr) == -1){
-        throw std::runtime_error("не удалось преобразовать IP адрес для sockaddr_in");
-    }
-    if (connect(client_socket, (sockaddr*)&sa, sizeof sa) == -1){
-        throw std::runtime_error("не удалось выполнить подключение");
-    }
-    int sent_bytes = send(client_socket, ss.str().c_str(), ss.str().length(), 0);
-    std::cout << "отправлено байт: " << sent_bytes << "\n";
+    std::string str = ss.str();
+    common::tcp_packet packet(str.begin(), str.end());
+    core_tcp_connector.send_message(packet);
 }
 
 void cmd_version(std::stack<CommandElementRealValue>& cmd){
@@ -60,7 +56,6 @@ void cmd_ip_address_ipv4(std::stack<CommandElementRealValue>& cmd){
     check_args_size(cmd, 3, "ip address <IPv4Address>");
     IPv4Address ip = std::get<IPv4Address>(cmd.top());
     boost::property_tree::ptree json;
-    json.put("component", "dhcp");
     json.put("cmd", "ip.address");
     json.put("ip", ip.to_string());
     send_cmd(KlevretComponent::CORE, json);

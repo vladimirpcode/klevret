@@ -6,10 +6,14 @@
 
 class DhcpServer;
 
-using handler_func = bool (&)(DhcpServer&, const boost::property_tree::ptree&, std::string&);
+using ptree = boost::property_tree::ptree;
 
-bool dhcp_pool_create(DhcpServer& dhcp_server, const boost::property_tree::ptree& pt, std::string& error);
+using handler_func = bool (&)(DhcpServer&, const ptree&, ptree&);
+
+bool dhcp_pool_create(DhcpServer& dhcp_server, const ptree& request, ptree& response);
+bool dhcp_pool_list(DhcpServer& dhcp_server, const ptree& request, ptree& response);
 
 const std::map<std::string, handler_func> api_handlers{
     {"dhcp.pool.create", dhcp_pool_create},
+    {"dhcp.pool.list", dhcp_pool_list},
 };

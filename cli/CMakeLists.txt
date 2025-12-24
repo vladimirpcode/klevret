@@ -10,6 +10,10 @@ file(GLOB KLEVRET_CLI_SOURCE_FILES
     # Note: Так же видел, что в исходном конфиге заголовочные файлы не указывались.
     #   Честно говоря первый раз вижу подобное, но если нужно, то заголовочные файлы можно убрать.
     "${KLEVRET_CLI_PATH}/src/*.hpp"
+    "${KLEVRET_COMMON_PATH}/src/*.hpp"
+    "${KLEVRET_COMMON_PATH}/src/*.cpp"
+    "${KLEVRET_CONFIG_PATH}/src/*.hpp"
+    "${KLEVRET_CONFIG_PATH}/src/*.cpp"
 )
 
 # ~~~ cli target ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ >>>
@@ -24,6 +28,8 @@ add_executable(${KLEVRET_CLI_TARGET} ${KLEVRET_CLI_SOURCE_FILES})
 #   указывать `#include <Subdir/File.hpp>`, а не `#include "../Subdir/File.hpp"`
 target_include_directories(${KLEVRET_CLI_TARGET}
     PRIVATE "${KLEVRET_CLI_PATH}/src/"
+    "${KLEVRET_CONFIG_PATH}/src/"
+    "${KLEVRET_COMMON_PATH}/src/"
 )
 
 # Указание стандарта

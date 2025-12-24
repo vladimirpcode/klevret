@@ -12,6 +12,8 @@ file(GLOB KLEVRET_DHCP_SOURCE_FILES
     "${KLEVRET_DHCP_PATH}/src/*.hpp"
     "${KLEVRET_COMMON_PATH}/src/*.hpp"
     "${KLEVRET_COMMON_PATH}/src/*.cpp"
+    "${KLEVRET_CONFIG_PATH}/src/*.cpp"
+    "${KLEVRET_CONFIG_PATH}/src/*.hpp"
 )
 
 # ~~~ dhcp-server target ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ >>>
@@ -33,6 +35,7 @@ target_sources(${KLEVRET_DHCP_TARGET} PUBLIC  ${KLEVRET_DHCP_SOURCE_FILES})
 target_include_directories(${KLEVRET_DHCP_TARGET}
     PUBLIC "${KLEVRET_DHCP_PATH}/src/"
     "${KLEVRET_COMMON_PATH}/src/"
+    "${KLEVRET_CONFIG_PATH}/src/"
 )
 
 # Указание стандарта
@@ -56,6 +59,7 @@ target_link_libraries(${KLEVRET_DHCP_TARGET}
         Boost::asio
         Boost::algorithm
         Boost::property_tree
+        Boost::json
         #common
 )
 # ~~~ тесты ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ >>>

@@ -21,7 +21,7 @@ int linux_if_nametoindex(const char *ifname) {
     if (sockfd == -1) {
         throw std::runtime_error("Не удалось создать сокет для получения индекса интерфейса");
     }
-    Defer close_socket([&](){
+    common::Defer close_socket([&](){
         close(sockfd);
     });
 
@@ -58,7 +58,7 @@ std::vector<NetworkInterface> get_all_interfaces(){
             if (fd == -1){
                 throw std::runtime_error("не удалось создать сокет get_all_interfaces()");
             }
-            Defer close_socket([&](){
+            common::Defer close_socket([&](){
                 close(fd);
             });
 

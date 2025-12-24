@@ -21,9 +21,10 @@ option(KLEVRET_BUILD_CORE "Сборка ядра" ON)
 option(KLEVRET_BUILD_DHCP "Сборка dhcp" ON)
 option(KLEVRET_BUILD_CLI "Сборка консоли" ON)
 option(KLEVRET_BUILD_COMMON "Сборка общих библиотек" OFF) # хардкодом собираются
+option(KLEVRET_BUILD_CONFIG "Сборка конфига" OFF) # хардкодом собираются
 
 # Тесты
-option(KLEVRET_BUILD_TESTS "Сборка тестов" OFF)
+option(KLEVRET_BUILD_TESTS "Сборка тестов" ON)
 
 # ~~~ глобальные настройки ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ >>>
 
@@ -76,6 +77,7 @@ set(KLEVRET_CORE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/core")
 set(KLEVRET_DHCP_PATH "${CMAKE_CURRENT_SOURCE_DIR}/dhcp")
 set(KLEVRET_CLI_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cli")
 set(KLEVRET_COMMON_PATH "${CMAKE_CURRENT_SOURCE_DIR}/common")
+set(KLEVRET_CONFIG_PATH "${CMAKE_CURRENT_SOURCE_DIR}/config")
 
 # core
 if(${KLEVRET_BUILD_CORE})
@@ -93,7 +95,6 @@ if(${KLEVRET_BUILD_CLI})
 endif()
 
 # common
-# cli
 if(${KLEVRET_BUILD_COMMON})
     #add_subdirectory(${KLEVRET_COMMON_PATH})
 endif()

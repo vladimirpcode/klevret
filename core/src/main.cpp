@@ -14,114 +14,60 @@
 #include <string>
 #include <sstream>
 #include "../../common/src/TcpListener.hpp"
+#include "../../common/src/ApiEndpoint.hpp"
+#include "../../config/src/Config.hpp"
 
-class TcpServer{
-public:
-    TcpServer(){
-        _socket = socket(AF_INET, SOCK_STREAM, 0);
-        if (_socket == -1){
-            throw std::runtime_error("не могу создать сокет");
-        }
-        int opt = 1;
-        if (setsockopt(_socket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1) {
-            close(_socket);
-            throw std::runtime_error("не удалось установить опцию REUSEADDR для сокета");
-        }
-        sockaddr_in sa;
-        memset(&sa, 0, sizeof sa);
-        sa.sin_family =  AF_INET;
-        if (inet_pton(AF_INET, "127.0.0.1", &sa.sin_addr) == -1){
-            throw std::runtime_error("не удалось преобразовать IP адрес для sockaddr_in");
-        }
-        sa.sin_port = htons(_port);
-
-        if (bind(_socket, (sockaddr*)&sa, sizeof sa) == -1){
-            close(_socket);
-            throw std::runtime_error("не удалось забиндить сокет");
-        }
-        if (listen(_socket, 5) == -1){
-            close(_socket);
-            throw std::runtime_error("не удалось поставить сокет на прослушку");
-        }
-        _thread = new std::thread(acceptor, _socket);
-
-    }
-    ~TcpServer(){
-        close(_socket);
-        delete _thread;
-    }
-    void join_threads(){
-        _thread->join();
-    }
-    void stop(){
-        // ToDo
-    }
-private:
-    std::thread *_thread;
-    int _socket;
-    const int _port = 40236;
-    std::queue<std::string> _messages;
-    static void acceptor(int server_socket){
-        std::cout << "начал прием TCP соединений" << "\n";
-        std::vector<std::thread> client_handler_threads;
-        while(true){
-            sockaddr_in client_addr;
-            socklen_t client_len = sizeof(client_addr);
-            int client_socket = accept(server_socket, (sockaddr*)&client_addr, &client_len);
-            if (client_socket == -1) {
-                std::cout << "не удалось принять подключение\n";
-                continue;
-            }
-            client_handler_threads.push_back(std::thread(client_handler_thread, client_socket));
-        }
-    }
-    static void client_handler_thread(int client_socket){
-        std::cout << "запущен обработчик клиента\n";
-        const int BUFFER_SIZE = 1024*10;
-        char buffer[BUFFER_SIZE];
-
-    }
-};
 
 int main(){
-    TcpListener tcp_listener("127.0.0.1", 40236, 5);
-    while (true){
-        if (!tcp_listener.is_empty()) {
-            auto packet = tcp_listener.get_next_packet();
-            std::vector<char> data(packet.begin(), packet.end());
-            std::string json_str(data.data());
-            boost::property_tree::ptree pt;
-            std::istringstream iss(json_str);
-            try {
-                boost::property_tree::read_json(iss, pt);
+    auto global_config = config::get_global_config();
 
-                // Доступ к данным
-                std::string component = pt.get<std::string>("component");
+    common::TcpListener tcp_listener_for_external_control_components(
+        "127.0.0.1",
+        global_config.get_json().get<int>("core_external_api_input_tcp_port"),
+        2
+    );
+
+    //dhcp, dns, etc...
+    common::TcpListener tcp_listener_for_internal_components(
+        "127.0.0.1",
+        global_config.get_json().get<int>("core_internal_api_input_tcp_port"),
+        config::count_internal_klevret_components_without_core()
+    );
+
+    common::TcpConnector tcp_connector_dhcp(
+        "127.0.0.1",
+        global_config.get_json().get<int>("dhcp_api_input_tcp_port")
+    );
+    std::cout << "core server started\n";
+    while (true){
+        if (!tcp_listener_for_external_control_components.is_empty()) {
+            try {
+                common::ApiMessage api_message(tcp_listener_for_external_control_components.get_next_packet());
+                api_message.json.put("message-type", "request");
+                std::string component = api_message.json.get<std::string>("component");
+                std::stringstream ss;
+                boost::property_tree::write_json(ss, api_message.json);
+                std::cout << ss.str() << "\n";
                 if (component == "dhcp"){
                     std::cout << "получил команду для DHCP\n";
-                    int client_socket = socket(AF_INET, SOCK_STREAM, 0);
-                    if (client_socket == -1){
-                        throw std::runtime_error("не удалось создать клиентский сокет");
-                    }
-                    sockaddr_in sa;
-                    memset(&sa, 0, sizeof sa);
-                    sa.sin_family = AF_INET;
-                    sa.sin_port = htons(40237);
-                    if (inet_pton(AF_INET, "127.0.0.1", &sa.sin_addr) == -1){
-                        throw std::runtime_error("не удалось преобразовать IP адрес для sockaddr_in");
-                    }
-                    if (connect(client_socket, (sockaddr*)&sa, sizeof sa) == -1){
-                        throw std::runtime_error("не удалось выполнить подключение");
-                    }
-                    int sent_bytes = send(client_socket, json_str.c_str(), json_str.length(), 0);
-                    std::cout << "отправлено байт: " << sent_bytes << "\n";
+                    tcp_connector_dhcp.send_message(api_message.serialize());
                 }
             } catch (const std::exception& e) {
                 std::cerr << "Не удалось распарсить json: " << e.what() << std::endl;
             }
-            // Отправляем ответ
-            //const char* response = "Message received";
-            //write(client_socket, response, strlen(response));
+        }
+        if (!tcp_listener_for_internal_components.is_empty()){
+            try {
+                common::ApiMessage api_message(tcp_listener_for_internal_components.get_next_packet());
+                api_message.json.put("message-type", "response");
+                common::TcpConnector cli_tcp_connector(
+                    "127.0.0.1",
+                    global_config.get_json().get<int>("cli_api_replies_input_tcp_port")
+                );
+                cli_tcp_connector.send_message(api_message.serialize());
+            } catch (const std::exception& e) {
+                std::cerr << "Не удалось распарсить json: " << e.what() << std::endl;
+            }
         }
     }
 }

@@ -30,6 +30,7 @@ enum class HardwareAddressType : uint8_t{
     Asynchronous_Transmission_Mode_ATM_21
 };
 
+// ToDo
 constexpr int get_hardware_address_length(HardwareAddressType htype){
     switch (htype)
     {

@@ -12,6 +12,8 @@ file(GLOB KLEVRET_CORE_SOURCE_FILES
     "${KLEVRET_CORE_PATH}/src/*.hpp"
     "${KLEVRET_COMMON_PATH}/src/*.hpp"
     "${KLEVRET_COMMON_PATH}/src/*.cpp"
+    "${KLEVRET_CONFIG_PATH}/src/*.hpp"
+    "${KLEVRET_CONFIG_PATH}/src/*.cpp"
 )
 
 # ~~~ core-server target ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ >>>
@@ -27,6 +29,7 @@ add_executable(${KLEVRET_CORE_TARGET} ${KLEVRET_CORE_SOURCE_FILES})
 target_include_directories(${KLEVRET_CORE_TARGET}
     PRIVATE "${KLEVRET_CORE_PATH}/src/"
     "${KLEVRET_COMMON_PATH}/src/"
+    "${KLEVRET_CONFIG_PATH}/src/"
 )
 
 # Указание стандарта

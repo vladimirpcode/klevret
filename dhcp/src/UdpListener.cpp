@@ -228,7 +228,7 @@ void UdpServer::unicast_send_to(const std::vector<uint8_t>& data, const NetworkI
     if (sockfd == -1){
         throw std::runtime_error("Ошибка создания сокета UdpServer::send_to");
     }
-    Defer close_socket([&](){
+    common::Defer close_socket([&](){
         close(sockfd);
     });
     divide_and_send(sockfd, data, iface, dst_mac, dst_ip);
@@ -239,7 +239,7 @@ void UdpServer::broadcast_send_to(const std::vector<uint8_t>& data, const IPv4Ad
     if (socket_for_sending == -1){
         throw std::runtime_error("Не удалось создать сокет для отправки UdpServer::send_to");
     }
-    Defer close_socket_for_sending([&](){
+    common::Defer close_socket_for_sending([&](){
         close(socket_for_sending);
     });
 
