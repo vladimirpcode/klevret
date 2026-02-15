@@ -88,13 +88,20 @@ IPv4Address IPv4Address::operator++(int){
 }
 
 
-bool IPv4Address::operator==(const IPv4Address& other){
+IPv4Address IPv4Address::operator--(int){
+    IPv4Address old = *this;
+    _decrement();
+    return old;
+}
+
+
+bool IPv4Address::operator==(const IPv4Address& other) const{
     return _data == other._data;
 }
 
 
 
-bool operator<(const IPv4Address& lhs, const IPv4Address rhs){
+bool operator<(const IPv4Address& lhs, const IPv4Address& rhs){
     return lhs.to_uint32_t() < rhs.to_uint32_t();
 }
 
@@ -104,6 +111,12 @@ void IPv4Address::_increment(){
     _data = host_to_network_endian_array<uint32_t, IP_V4_ADDRESS_LENGTH>(ip_data);
 }
 
+
+void IPv4Address::_decrement(){
+    uint32_t ip_data = to_uint32_t();
+    ip_data--;
+    _data = host_to_network_endian_array<uint32_t, IP_V4_ADDRESS_LENGTH>(ip_data);
+}
 
 uint32_t IPv4Address::to_uint32_t() const{
     return network_array_to_host_endian<uint32_t, IP_V4_ADDRESS_LENGTH>(_data);

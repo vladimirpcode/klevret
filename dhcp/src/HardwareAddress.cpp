@@ -70,3 +70,8 @@ bool operator<(const MacAddress& lhs, const MacAddress& rhs){
     }
     return false;
 }
+
+
+bool MacAddress::operator==(const MacAddress& other) const{
+    return data == other.data;
+}

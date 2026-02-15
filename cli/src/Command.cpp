@@ -253,6 +253,14 @@ std::vector<Command> all_commands = {
         },
         cmd_dhcp_pool_create
     },
+    {
+        KlevretComponent::DHCP,
+        "dhcp pool list",
+        {
+
+        },
+        cmd_dhcp_pool_list
+    }
 
 };
 

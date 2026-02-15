@@ -12,21 +12,15 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 ////
-#include "../../common/src/TcpListener.hpp"
-#include "../../common/src/ApiEndpoint.hpp"
+#include "../../common/src/ApiConnector.hpp"
 #include "../../config/src/Config.hpp"
 
 using namespace std::string_literals;
 
-common::TcpConnector core_tcp_connector(
-    "127.0.0.1",
-    config::get_global_config().get_json().get<int>("core_external_api_input_tcp_port")
+common::ApiConnector core_api_connector(
+    config::get_global_config().json.get<int>("core_external_api_input_tcp_port")
 );
-common::TcpListener api_reponse_listener(
-    "127.0.0.1",
-    config::get_global_config().get_json().get<int>("cli_api_replies_input_tcp_port"),
-    1
-);
+
 
 void check_args_size(const std::stack<CommandElementRealValue>& cmd, int number_of_args, const std::string cmd_str){
     if (cmd.size() != number_of_args){
@@ -34,14 +28,26 @@ void check_args_size(const std::stack<CommandElementRealValue>& cmd, int number_
     }
 }
 
-void send_cmd(KlevretComponent klevret_component, boost::property_tree::ptree& obj){
+void send_cmd_and_get_reply( boost::property_tree::ptree& obj){
     obj.put("component", "dhcp");
     std::stringstream ss;
     boost::property_tree::write_json(ss, obj);
     std::cout << ss.str() << "\n";
     std::string str = ss.str();
     common::tcp_packet packet(str.begin(), str.end());
-    core_tcp_connector.send_message(packet);
+    common::ApiMessage api_message(packet);
+    common::ApiMessage reply = core_api_connector.send_and_whait_reply(api_message);
+    if (reply.json.get<bool>("status", false)){
+        Console::Instance().write_str(reply.json.get<std::string>("msg", "") + "\n");
+        Console::Instance().change_text_color(Color::GREEN);
+        Console::Instance().write_str("OK\n");
+        Console::Instance().change_text_color(Color::WHITE);
+    } else {
+        Console::Instance().write_str(reply.json.get<std::string>("msg", "") + "\n");
+        Console::Instance().change_text_color(Color::RED);
+        Console::Instance().write_str("ERROR\n");
+        Console::Instance().change_text_color(Color::WHITE);
+    }
 }
 
 void cmd_version(std::stack<CommandElementRealValue>& cmd){
@@ -58,7 +64,7 @@ void cmd_ip_address_ipv4(std::stack<CommandElementRealValue>& cmd){
     boost::property_tree::ptree json;
     json.put("cmd", "ip.address");
     json.put("ip", ip.to_string());
-    send_cmd(KlevretComponent::CORE, json);
+    send_cmd_and_get_reply(json);
 }
 
 void cmd_dhcp_pool_create(std::stack<CommandElementRealValue>& cmd){
@@ -71,5 +77,12 @@ void cmd_dhcp_pool_create(std::stack<CommandElementRealValue>& cmd){
     json.put("cmd", "dhcp.pool.create");
     json.put("ip_start", ip_start.to_string());
     json.put("ip_end", ip_end.to_string());
-    send_cmd(KlevretComponent::CORE, json);
+    send_cmd_and_get_reply(json);
+}
+
+void cmd_dhcp_pool_list(std::stack<CommandElementRealValue>& cmd){
+    boost::property_tree::ptree json;
+    json.put("component", "dhcp");
+    json.put("cmd", "dhcp.pool.list");
+    send_cmd_and_get_reply(json);
 }

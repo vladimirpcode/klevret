@@ -11,8 +11,6 @@
 
 namespace common{
 
-
-
 class TcpListener{
 public:
     TcpListener(const std::string& ip, int port, int max_connections);

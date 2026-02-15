@@ -5,9 +5,9 @@
 #include <algorithm>
 #include <iostream>
 
-#include <boost/asio.hpp>
 #include <boost/algorithm/algorithm.hpp>
 #include <boost/property_tree/json_parser.hpp>
+#include "../../config/src/Config.hpp"
 
 DhcpServer* DhcpServer::_instance;
 std::mutex DhcpServer::_instance_mutex;
@@ -155,14 +155,31 @@ void DhcpServer::main_loop(){
     }
 }
 
+void add_address_pool_to_config(const AddressPool& address_pool) {
+    config::Config dhcp_config = config::get_dhcp_config();
+    // 1. Получаем массив dhcp_address_pools (если есть)
+    boost::property_tree::ptree pools;
+    if (auto dhcp_pools = dhcp_config.json.get_child_optional("dhcp_address_pools")) {
+        pools = *dhcp_pools;
+    }
+
+    // 2. Создаем новый элемент для добавления
+    boost::property_tree::ptree new_pool = to_ptree(address_pool);
+
+    // 3. Добавляем в массив (пустой ключ для элементов массива)
+    pools.push_back(std::make_pair("", new_pool));
+
+    // 4. Заменяем старый массив на обновленный
+    dhcp_config.json.put_child("dhcp_address_pools", pools);
+}
 
 bool DhcpServer::add_address_pool(const AddressPool& pool, std::string& error){
     std::lock_guard<std::mutex> lock_guard{_state_change_mutex};
     for (const auto& current_pool : _address_pools){
-        uint32_t adding_start = pool.get_start_ip().to_uint32_t();
-        uint32_t adding_end = pool.get_end_ip().to_uint32_t();
-        uint32_t current_start = current_pool.get_start_ip().to_uint32_t();
-        uint32_t current_end = current_pool.get_end_ip().to_uint32_t();
+        uint32_t adding_start = pool.get_addresses_range().start.to_uint32_t();
+        uint32_t adding_end = pool.get_addresses_range().end.to_uint32_t();
+        uint32_t current_start = current_pool.get_addresses_range().start.to_uint32_t();
+        uint32_t current_end = current_pool.get_addresses_range().end.to_uint32_t();
         if (adding_start >= current_start && adding_start <= current_end){
             error = "Intersection of address pools";
             return false;

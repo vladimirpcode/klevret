@@ -2,16 +2,23 @@
 
 #include "IpAddress.hpp"
 #include <set>
-#include <map>
+#include <unordered_map>
 #include "HardwareAddress.hpp"
 #include "DhcpOption.hpp"
+#include <boost/property_tree/ptree.hpp>
+
+//включительно
+struct IPv4AddressRange{
+    IPv4AddressRange(const IPv4Address& start, const IPv4Address& end);
+    IPv4Address start;
+    IPv4Address end;
+    bool contains(const IPv4Address& ip) const;
+};
 
 class AddressPool{
 public:
     AddressPool(const IPv4Address& start_ip, const IPv4Address& end_ip);
-    void include_ip(const IPv4Address& ip);
     void exclude_ip(const IPv4Address& ip);
-    void include_ip_range(const IPv4Address& ip_start, const IPv4Address& ip_end);
     void exclude_ip_range(const IPv4Address& ip_start, const IPv4Address& ip_end);
     void reserve_ip(const IPv4Address& ip, const MacAddress& mac);
     void unreserve_ip(const IPv4Address& ip);
@@ -26,13 +33,13 @@ public:
     void set_option(DhcpOption option);
     void remove_option(int option_number);
 
-    IPv4Address get_start_ip() const;
-    IPv4Address get_end_ip() const;
+    IPv4AddressRange get_addresses_range() const;
+    friend boost::property_tree::ptree to_ptree(const AddressPool& address_pool);
+    friend AddressPool from_ptree(const boost::property_tree::ptree pt);
 private:
-    const IPv4Address _start_ip; // for info
-    const IPv4Address _end_ip; // for info
-    std::set<IPv4Address> _included_ip_addresses;
-    std::set<IPv4Address> _excluded_ip_addresses;
+    const IPv4AddressRange _addresses_range;
+    std::set<IPv4Address> _included_addresses;
+    std::set<IPv4Address> _excluded_addresses;
     std::map<IPv4Address, MacAddress> _reserved_ip_addresses; // вместе
     std::map<MacAddress, IPv4Address> _reserved_mac_addresses;// вместе
     std::map<IPv4Address, MacAddress> _taken_ip_addresses; // тоже вместе
@@ -41,3 +48,8 @@ private:
     std::map<int, DhcpOption> _options;
     bool is_address_cached(const MacAddress& mac) const;
 };
+
+boost::property_tree::ptree to_ptree(const AddressPool& address_pool);
+AddressPool addr_pool_from_ptree(const boost::property_tree::ptree pt);
+boost::property_tree::ptree to_ptree(const IPv4AddressRange& address_range);
+IPv4AddressRange addr_range_from_ptree(const boost::property_tree::ptree pt);

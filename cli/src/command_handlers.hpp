@@ -9,3 +9,5 @@ void blank(std::stack<CommandElementRealValue>& cmd);
 void cmd_ip_address_ipv4(std::stack<CommandElementRealValue>& cmd);
 
 void cmd_dhcp_pool_create(std::stack<CommandElementRealValue>& cmd);
+
+void cmd_dhcp_pool_list(std::stack<CommandElementRealValue>& cmd);

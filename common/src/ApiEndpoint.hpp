@@ -5,23 +5,11 @@
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <string>
+#include "ApiMessage.hpp"
 
 
 namespace common{
 
-
-struct ApiMessage{
-    ApiMessage(int id, const std::string& component_name, boost::property_tree::ptree json)
-        : id(id), component_name(component_name), json(json){}
-    ApiMessage(const tcp_packet& packet)
-        : id(0), component_name(""), json(boost::property_tree::ptree()){deserialize(packet);}
-    int id;
-    std::string component_name;
-    boost::property_tree::ptree json;
-
-    tcp_packet serialize();
-    void deserialize(const tcp_packet& packet);
-};
 
 /*
 abstraсtion over TcpConnector and TcpListener

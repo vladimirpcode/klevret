@@ -33,6 +33,7 @@ TcpConnector::TcpConnector(const std::string& server_ip, uint16_t port)
             //throw std::runtime_error("Connection error (TcpConnector)");
         }
         failed = false;
+        usleep(1000000);
     }
 }
 

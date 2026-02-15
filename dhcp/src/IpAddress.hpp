@@ -20,16 +20,18 @@ public:
     std::string to_string() const;
     std::vector<uint8_t> to_network_data() const;
     IPv4Address operator++(int);
-    bool operator==(const IPv4Address& other);
-    friend bool operator<(const IPv4Address& lhs, const IPv4Address rhs);
+    IPv4Address operator--(int);
+    bool operator==(const IPv4Address& other) const;
+    friend bool operator<(const IPv4Address& lhs, const IPv4Address& rhs);
     uint32_t to_uint32_t() const;
 private:
     void _increment();
+    void _decrement();
     std::array<uint8_t, IP_V4_ADDRESS_LENGTH> _data;   // big endian
 };
 
 
-bool operator<(const IPv4Address& lhs, const IPv4Address rhs);
+bool operator<(const IPv4Address& lhs, const IPv4Address& rhs);
 
 class IPv4SubnetMask{
 public:

@@ -77,6 +77,7 @@ public:
     std::string to_string() const;
     virtual chaddr_t to_chaddr() override;
     friend bool operator<(const MacAddress& lhs, const MacAddress& rhs);
+    bool operator==(const MacAddress& other) const;
 
     const static uint8_t address_length = MAC_ADDRESS_LENGTH;
     std::array<uint8_t, MAC_ADDRESS_LENGTH> data;

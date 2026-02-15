@@ -1,37 +1,48 @@
 #include "AddressPool.hpp"
 
+#include <algorithm>
+
+
+IPv4AddressRange::IPv4AddressRange(const IPv4Address& start, const IPv4Address& end)
+    : start(start), end(end)
+{
+
+}
+
+bool IPv4AddressRange::contains(const IPv4Address& ip) const {
+    return ip.to_uint32_t() >= start.to_uint32_t() && ip.to_uint32_t() <= end.to_uint32_t();
+}
 
 AddressPool::AddressPool(const IPv4Address& start_ip, const IPv4Address& end_ip)
-    : _start_ip(start_ip), _end_ip(end_ip)
+    :   _addresses_range(start_ip, end_ip)
 {
-    IPv4Address current = start_ip;
-    while (current != end_ip){
-        _included_ip_addresses.insert(current);
-        current++;
+    for (IPv4Address ip = start_ip; ip.to_uint32_t() <= end_ip.to_uint32_t(); ip++){
+        _included_addresses.insert(ip);
     }
-    _included_ip_addresses.insert(end_ip);
 }
 
-
-void AddressPool::include_ip(const IPv4Address& ip){
-    _included_ip_addresses.insert(ip);
-    _excluded_ip_addresses.erase(ip);
-}
 
 
 void AddressPool::exclude_ip(const IPv4Address& ip){
-    _included_ip_addresses.erase(ip);
-    _excluded_ip_addresses.insert(ip);
-}
-
-
-void AddressPool::include_ip_range(const IPv4Address& ip_start, const IPv4Address& ip_end){
-    IPv4Address current = ip_start;
-    while (current != ip_end){
-        include_ip(current);
-        current++;
+    if (std::find(_included_addresses.begin(), _included_addresses.end(), ip) == _included_addresses.end()){
+        return;
     }
-    include_ip(ip_end);
+    _excluded_addresses.insert(ip);
+    if (_reserved_ip_addresses.find(ip) != _reserved_ip_addresses.end()){
+        unreserve_ip(ip);
+    }
+    if (_taken_ip_addresses.find(ip) != _taken_ip_addresses.end()){
+        release_address(ip);
+    }
+    auto cache_iter = std::find_if(_cache.begin(), _cache.end(),
+        [&](const auto& pair) {
+            return pair.second == ip;
+        }
+    );
+    if (cache_iter != _cache.end()){
+        _cache.erase(cache_iter);
+    }
+    _included_addresses.erase(std::find(_included_addresses.begin(), _included_addresses.end(), ip));
 }
 
 
@@ -86,7 +97,7 @@ IPv4Address AddressPool::get_address(const MacAddress& mac){
             return _cache[mac];
         }
     }
-    for (auto& ip : _included_ip_addresses){
+    for (auto& ip : _included_addresses){
         if (is_address_reserved(ip) || is_address_taken(ip)){
             continue;
         }
@@ -121,11 +132,11 @@ bool AddressPool::is_address_reserved(const MacAddress& mac) const{
 }
 
 bool AddressPool::is_address_included(const IPv4Address& ip) const{
-    return _included_ip_addresses.find(ip) != _included_ip_addresses.end();
+    return _included_addresses.find(ip) != _included_addresses.end();
 }
 
 bool AddressPool::is_address_excluded(const IPv4Address& ip) const{
-    return _excluded_ip_addresses.find(ip) != _excluded_ip_addresses.end();
+    return _excluded_addresses.find(ip) != _excluded_addresses.end();
 }
 
 
@@ -142,10 +153,31 @@ void AddressPool::remove_option(int option_number){
     _options.erase(option_number);
 }
 
-IPv4Address AddressPool::get_start_ip() const{
-    return _start_ip;
+IPv4AddressRange AddressPool::get_addresses_range() const{
+    return _addresses_range;
 }
 
-IPv4Address AddressPool::get_end_ip() const{
-    return _end_ip;
+
+boost::property_tree::ptree to_ptree(const AddressPool& address_pool){
+    boost::property_tree::ptree pt;
+    pt.put_child("addresses", to_ptree(address_pool._addresses_range));
+
+    boost::property_tree::ptree excluded_addresses_pt;
+    for (auto& ip : address_pool._excluded_addresses){
+
+    }
+    return pt;
+}
+
+AddressPool addr_pool_from_ptree(const boost::property_tree::ptree pt){
+
+}
+
+
+boost::property_tree::ptree to_ptree(const IPv4AddressRange& address_range){
+
+}
+
+IPv4AddressRange addr_range_from_ptree(const boost::property_tree::ptree pt){
+
 }

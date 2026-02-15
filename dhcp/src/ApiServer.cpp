@@ -13,7 +13,7 @@
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <sstream>
-#include "../../common/src/ApiEndpoint.hpp"
+#include "../../common/src/ApiListener.hpp"
 #include "../../config/src/Config.hpp"
 #include "ApiHandlers.hpp"
 
@@ -45,29 +45,29 @@ std::string ptree_to_json_string(const boost::property_tree::ptree& pt) {
 void ApiServer::start(DhcpServer& dhcp_server){
     _dhcp_server = &dhcp_server;
     _thread = new std::thread([&](){
-    auto global_config = config::get_global_config();
+        auto global_config = config::get_global_config();
         std::cout << "start _thread in ApiServer\n";
-        int dhcp_api_input_tcp_port = global_config.get_json().get<int>("dhcp_api_input_tcp_port");
-        int core_internal_api_input_tcp_port = global_config.get_json().get<int>("core_internal_api_input_tcp_port");
-        std::cout << dhcp_api_input_tcp_port << " " << core_internal_api_input_tcp_port << "\n";
-        common::ApiEndpoint api_endpoint(
-            dhcp_api_input_tcp_port,
-            "127.0.0.1",
-            core_internal_api_input_tcp_port
-        );
+        int dhcp_api_input_tcp_port = global_config.json.get<int>("dhcp_api_input_tcp_port");
+        common::ApiListener api_endpoint(dhcp_api_input_tcp_port);
+        std::cout << "start API server loop\n";
         while (true)
         {
             if (api_endpoint.is_there_messages()){
                 common::ApiMessage api_message = api_endpoint.get_next_message();
+                std::cout << ptree_to_json_string(api_message.json) << "\n";
                 try{
                     ptree response;
                     auto api_handler = api_handlers.at(api_message.json.get<std::string>("cmd"));
                     bool result = api_handler(*_dhcp_server, api_message.json, response);
+                    common::ApiMessage reply(api_message);
+                    reply.json = response;
+                    reply.json.put("cmd", api_message.json.get<std::string>("cmd"));
+                    api_endpoint.send_reply(reply);
                     // ToDo сделать отдельный канал назад в кор на один порт со всех компонент, еще назад в консоль.
                     // помечать запросы рендомным ID, с разным префиксом для фронтов и консолей. И получится асинхронный
                     // обмен месенджами на основе очередей. И еще сделать в CLI функцию с таймайтом whait_response_for_id()
                 } catch (...){
-
+                    std::cout << "ошибка обработки запроса\n";
                 }
             }
         }
